@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Đăng nhập - Tủ Sách Cá Nhân</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    .auth-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 32px 28px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+    }
+    h2 { font-size: 22px; margin-bottom: 6px; text-align: center; color: #0f172a; }
+    .subtitle { text-align: center; color: #64748b; font-size: 13px; margin-bottom: 24px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #334155; }
+    input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+    }
+    input:focus { border-color: #2563eb; }
+    .btn-submit {
+      width: 100%;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 11px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-submit:hover { background: #1d4ed8; }
+    .toggle-mode {
+      text-align: center;
+      margin-top: 18px;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .toggle-mode a { color: #2563eb; text-decoration: none; font-weight: 500; }
+    #msg {
+      margin-top: 14px;
+      font-size: 13px;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .error { color: #ef4444; }
+    .success { color: #16a34a; }
+  </style>
+</head>
+<body>
+
+  <div class="auth-card">
+    <h2 id="auth-title">Đăng Nhập</h2>
+    <div class="subtitle" id="auth-subtitle">Nhập tài khoản để truy cập tủ sách cá nhân</div>
+
+    <form id="auth-form">
+      <div class="form-group">
+        <label>Tên đăng nhập (Username)</label>
+        <input type="text" id="username" placeholder="Ví dụ: rokvn1985" required autocomplete="username">
+      </div>
+
+      <div class="form-group">
+        <label>Mật khẩu</label>
+        <input type="password" id="password" placeholder="Tối thiểu 6 ký tự" required autocomplete="current-password">
+      </div>
+
+      <button type="submit" class="btn-submit" id="btn-submit">Đăng Nhập</button>
+    </form>
+
+    <div id="msg"></div>
+
+    <div class="toggle-mode">
+      <span id="toggle-text">Chưa có tài khoản?</span>
+      <a href="#" id="toggle-link">Đăng ký ngay</a>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://qfbsdtwvgavouypeemhm.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_NWIItYyy6XQMNSOzdV7PGw_Lu-Yf4-n';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let isSignUp = false;
+
+    const authTitle = document.getElementById('auth-title');
+    const authSubtitle = document.getElementById('auth-subtitle');
+    const btnSubmit = document.getElementById('btn-submit');
+    const toggleText = document.getElementById('toggle-text');
+    const toggleLink = document.getElementById('toggle-link');
+    const msgBox = document.getElementById('msg');
+
+    toggleLink.onclick = (e) => {
+      e.preventDefault();
+      isSignUp = !isSignUp;
+      if (isSignUp) {
+        authTitle.innerText = 'Đăng Ký Tài Khoản';
+        authSubtitle.innerText = 'Tạo tài khoản để sở hữu kho sách riêng';
+        btnSubmit.innerText = 'Đăng Ký';
+        toggleText.innerText = 'Đã có tài khoản?';
+        toggleLink.innerText = 'Đăng nhập ngay';
+      } else {
+        authTitle.innerText = 'Đăng Nhập';
+        authSubtitle.innerText = 'Nhập tài khoản để truy cập tủ sách cá nhân';
+        btnSubmit.innerText = 'Đăng Nhập';
+        toggleText.innerText = 'Chưa có tài khoản?';
+        toggleLink.innerText = 'Đăng ký ngay';
+      }
+      msgBox.innerText = '';
+    };
+
+    function getSystemAccount(rawUsername) {
+      const cleanUsername = rawUsername.toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
+      return `${cleanUsername}@library.local`;
+    }
+
+    document.getElementById('auth-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const rawUsername = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+
+      if (rawUsername.length < 3) {
+        msgBox.className = 'error';
+        msgBox.innerText = 'Tên đăng nhập phải có ít nhất 3 ký tự!';
+        return;
+      }
+
+      const accountIdentifier = getSystemAccount(rawUsername);
+      msgBox.className = '';
+      msgBox.innerText = 'Đang xử lý...';
+
+      if (isSignUp) {
+        const { data, error } = await supabaseClient.auth.signUp({
+          email: accountIdentifier,
+          password: password,
+          options: { data: { username: rawUsername } }
+        });
+
+        if (error) {
+          msgBox.className = 'error';
+          msgBox.innerText = 'Lỗi: ' + (error.message.includes('already registered') ? 'Tên đăng nhập này đã có người dùng!' : error.message);
+        } else {
+          msgBox.className = 'success';
+          msgBox.innerText = 'Đăng ký thành công! Đang chuyển đến thư viện...';
+          await supabaseClient.auth.signInWithPassword({ email: accountIdentifier, password });
+          window.location.href = 'index.html';
+        }
+      } else {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email: accountIdentifier,
+          password: password
+        });
+
+        if (error) {
+          msgBox.className = 'error';
+          msgBox.innerText = 'Sai tên đăng nhập hoặc mật khẩu!';
+        } else {
+          msgBox.className = 'success';
+          msgBox.innerText = 'Đăng nhập thành công!';
+          window.location.href = 'index.html';
+        }
+      }
+    };
+
+    supabaseClient.auth.getSession().then(({ data: { session } }) => {
+      if (session) window.location.href = 'index.html';
+    });
+  </script>
+</body>
+</html>
