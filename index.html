@@ -522,7 +522,7 @@
       </table>
       <div class="modal-actions">
         <button class="btn btn-secondary" id="btn-close-cat-modal">Đóng</button>
-        <button class="btn" id="btn-save-cat-orders">Lưu Thứ Tự</button>
+       <button class="btn" id="btn-save-cat-orders">Lưu Thay Đổi</button>
       </div>
     </div>
   </div>
@@ -949,15 +949,24 @@
       userCategories.forEach((cat, idx) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${escapeHtml(cat.name)}</td>
-          <td><input type="number" class="cat-order-input" data-index="${idx}" value="${cat.sort_order}" style="width:50px; padding:3px 6px;"></td>
-          <td><button class="btn-del-sm" data-index="${idx}">Xóa</button></td>
+          <td>
+            <input type="text" class="cat-name-input" data-index="${idx}" value="${escapeHtml(cat.name)}" style="width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;">
+          </td>
+          <td>
+            <input type="number" class="cat-order-input" data-index="${idx}" value="${cat.sort_order}" style="width: 55px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;">
+          </td>
+          <td style="text-align: center;">
+            <button class="btn-del-sm" data-index="${idx}">Xóa</button>
+          </td>
         `;
+        
         tr.querySelector('.btn-del-sm').onclick = async () => {
           if (confirm(`Xóa thể loại "${cat.name}"?`)) {
             if (cat.id) await supabaseClient.from('categories').delete().eq('id', cat.id);
             userCategories.splice(idx, 1);
-            renderCatTable(); renderCategoryBar(); populateCategoryDropdown();
+            renderCatTable(); 
+            renderCategoryBar(); 
+            populateCategoryDropdown();
           }
         };
         tbody.appendChild(tr);
@@ -976,17 +985,56 @@
       renderCatTable(); renderCategoryBar(); populateCategoryDropdown();
     };
 
-    document.getElementById('btn-save-cat-orders').onclick = async () => {
-      document.querySelectorAll('.cat-order-input').forEach(input => {
-        const idx = input.getAttribute('data-index');
-        userCategories[idx].sort_order = parseInt(input.value) || 10;
-      });
-      for (const cat of userCategories) {
-        if (cat.id) await supabaseClient.from('categories').update({ sort_order: cat.sort_order }).eq('id', cat.id);
-        else await supabaseClient.from('categories').insert([{ user_id: currentUser.id, name: cat.name, sort_order: cat.sort_order }]);
+   document.getElementById('btn-save-cat-orders').onclick = async () => {
+      const nameInputs = document.querySelectorAll('.cat-name-input');
+      const orderInputs = document.querySelectorAll('.cat-order-input');
+
+      for (let i = 0; i < userCategories.length; i++) {
+        const oldName = userCategories[i].name;
+        const newName = nameInputs[i].value.trim();
+        const newOrder = parseInt(orderInputs[i].value) || 10;
+
+        if (!newName) {
+          alert('Tên thể loại không được để trống!');
+          return;
+        }
+
+        // Nếu có thay đổi tên thể loại, cập nhật luôn các sách đang dùng thể loại cũ
+        if (oldName !== newName) {
+          await supabaseClient
+            .from('books')
+            .update({ category: newName })
+            .eq('user_id', currentUser.id)
+            .eq('category', oldName);
+          
+          // Cập nhật bộ nhớ allBooks cục bộ
+          allBooks.forEach(b => {
+            if (b.category === oldName) b.category = newName;
+          });
+        }
+
+        userCategories[i].name = newName;
+        userCategories[i].sort_order = newOrder;
+
+        if (userCategories[i].id) {
+          await supabaseClient
+            .from('categories')
+            .update({ name: newName, sort_order: newOrder })
+            .eq('id', userCategories[i].id);
+        } else {
+          const { data } = await supabaseClient
+            .from('categories')
+            .insert([{ user_id: currentUser.id, name: newName, sort_order: newOrder }])
+            .select();
+          if (data && data[0]) userCategories[i].id = data[0].id;
+        }
       }
+
       catModal.style.display = 'none';
-      renderCategoryBar(); populateCategoryDropdown();
+      renderCategoryBar();
+      populateCategoryDropdown();
+      renderBookGrid();
+      alert('Đã cập nhật thể loại thành công!');
     };
 
     // ==========================================
