@@ -28,7 +28,10 @@
     h2 { font-size: 22px; margin-bottom: 6px; text-align: center; color: #0f172a; }
     .subtitle { text-align: center; color: #64748b; font-size: 13px; margin-bottom: 24px; }
     .form-group { margin-bottom: 16px; }
-    label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #334155; }
+    .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    label { font-size: 13px; font-weight: 500; color: #334155; }
+    .forgot-link { font-size: 12px; color: #2563eb; text-decoration: none; }
+    .forgot-link:hover { text-decoration: underline; }
     input {
       width: 100%;
       padding: 10px 14px;
@@ -62,10 +65,21 @@
       margin-top: 14px;
       font-size: 13px;
       text-align: center;
-      line-height: 1.4;
+      line-height: 1.5;
     }
     .error { color: #ef4444; }
     .success { color: #16a34a; }
+    .info-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      margin-top: 14px;
+      display: none;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -76,12 +90,17 @@
 
     <form id="auth-form">
       <div class="form-group">
-        <label>Tên đăng nhập (Username)</label>
+        <div class="label-row">
+          <label>Tên đăng nhập (Username)</label>
+        </div>
         <input type="text" id="username" placeholder="Ví dụ: rokvn1985" required autocomplete="username">
       </div>
 
       <div class="form-group">
-        <label>Mật khẩu</label>
+        <div class="label-row">
+          <label>Mật khẩu</label>
+          <a href="#" class="forgot-link" id="btn-forgot">Quên mật khẩu?</a>
+        </div>
         <input type="password" id="password" placeholder="Tối thiểu 6 ký tự" required autocomplete="current-password">
       </div>
 
@@ -89,6 +108,9 @@
     </form>
 
     <div id="msg"></div>
+    <div id="forgot-box" class="info-box">
+      💡 Do tài khoản đăng ký bằng Username không gắn email khôi phục, vui lòng nhắn tin cho <b>Quản trị viên</b> kèm tên đăng nhập của bạn để được cấp lại mật khẩu mới.
+    </div>
 
     <div class="toggle-mode">
       <span id="toggle-text">Chưa có tài khoản?</span>
@@ -109,28 +131,41 @@
     const toggleText = document.getElementById('toggle-text');
     const toggleLink = document.getElementById('toggle-link');
     const msgBox = document.getElementById('msg');
+    const forgotBox = document.getElementById('forgot-box');
+    const btnForgot = document.getElementById('btn-forgot');
+
+    btnForgot.onclick = (e) => {
+      e.preventDefault();
+      forgotBox.style.display = forgotBox.style.display === 'block' ? 'none' : 'block';
+    };
 
     toggleLink.onclick = (e) => {
       e.preventDefault();
       isSignUp = !isSignUp;
+      forgotBox.style.display = 'none';
       if (isSignUp) {
         authTitle.innerText = 'Đăng Ký Tài Khoản';
         authSubtitle.innerText = 'Tạo tài khoản để sở hữu kho sách riêng';
         btnSubmit.innerText = 'Đăng Ký';
         toggleText.innerText = 'Đã có tài khoản?';
         toggleLink.innerText = 'Đăng nhập ngay';
+        btnForgot.style.display = 'none';
       } else {
         authTitle.innerText = 'Đăng Nhập';
         authSubtitle.innerText = 'Nhập tài khoản để truy cập tủ sách cá nhân';
         btnSubmit.innerText = 'Đăng Nhập';
         toggleText.innerText = 'Chưa có tài khoản?';
         toggleLink.innerText = 'Đăng ký ngay';
+        btnForgot.style.display = 'inline';
       }
       msgBox.innerText = '';
     };
 
-    function getSystemAccount(rawUsername) {
-      const cleanUsername = rawUsername.toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
+    // Nếu người dùng nhập sẵn email (có dấu @) thì giữ nguyên, nếu nhập username thì nối @library.local
+    function getSystemAccount(rawInput) {
+      const trimmed = rawInput.toLowerCase().trim();
+      if (trimmed.includes('@')) return trimmed;
+      const cleanUsername = trimmed.replace(/[^a-z0-9_]/g, '');
       return `${cleanUsername}@library.local`;
     }
 

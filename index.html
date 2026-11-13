@@ -73,7 +73,7 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       box-shadow: 0 12px 24px -4px rgba(0,0,0,0.12);
-      width: 190px;
+      width: 195px;
       z-index: 100;
       overflow: hidden;
       padding: 4px 0;
@@ -380,6 +380,7 @@
             <button class="dropdown-item" id="menu-btn-cats">🏷️ Quản Lý Thể Loại</button>
             <button class="dropdown-item" id="menu-btn-quotes">💬 Quản Lý Trích Dẫn</button>
             <button class="dropdown-item" onclick="window.location.href='articles.html'">✍️ Sổ Tay Bài Viết</button>
+            <button class="dropdown-item" id="menu-btn-password">🔑 Đổi Mật Khẩu</button>
             <button class="dropdown-item danger" id="menu-btn-logout">🚪 Đăng Xuất</button>
           </div>
         </div>
@@ -523,7 +524,26 @@
       </table>
       <div class="modal-actions">
         <button class="btn btn-secondary" id="btn-close-cat-modal">Đóng</button>
-       <button class="btn" id="btn-save-cat-orders">Lưu Thay Đổi</button>
+        <button class="btn" id="btn-save-cat-orders">Lưu Thay Đổi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ĐỔI MẬT KHẨU -->
+  <div class="modal" id="password-modal">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">🔑 Đổi Mật Khẩu Tài Khoản</div>
+      <div class="form-group">
+        <label>Mật khẩu mới (tối thiểu 6 ký tự):</label>
+        <input type="password" id="new-password-input" placeholder="Nhập mật khẩu mới...">
+      </div>
+      <div class="form-group">
+        <label>Xác nhận mật khẩu mới:</label>
+        <input type="password" id="confirm-password-input" placeholder="Nhập lại mật khẩu mới...">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="btn-close-pwd">Hủy</button>
+        <button class="btn" id="btn-save-pwd">Cập Nhật Mật Khẩu</button>
       </div>
     </div>
   </div>
@@ -566,6 +586,7 @@
     const bookModal = document.getElementById('book-modal');
     const catModal = document.getElementById('cat-modal');
     const quotesModal = document.getElementById('quotes-modal');
+    const pwdModal = document.getElementById('password-modal');
     const spotlightModal = document.getElementById('spotlight-modal');
     const spotlightInput = document.getElementById('spotlight-input');
     const spotlightResults = document.getElementById('spotlight-results');
@@ -600,6 +621,49 @@
       resetQuoteForm();
       renderQuotesTable();
       quotesModal.style.display = 'flex';
+    };
+
+    // Mở Modal Đổi Mật Khẩu
+    document.getElementById('menu-btn-password').onclick = () => {
+      userDropdown.classList.remove('show');
+      document.getElementById('new-password-input').value = '';
+      document.getElementById('confirm-password-input').value = '';
+      pwdModal.style.display = 'flex';
+      document.getElementById('new-password-input').focus();
+    };
+
+    document.getElementById('btn-close-pwd').onclick = () => {
+      pwdModal.style.display = 'none';
+    };
+
+    document.getElementById('btn-save-pwd').onclick = async () => {
+      const newPwd = document.getElementById('new-password-input').value;
+      const confirmPwd = document.getElementById('confirm-password-input').value;
+
+      if (newPwd.length < 6) {
+        alert('Mật khẩu mới phải có ít nhất 6 ký tự!');
+        return;
+      }
+      if (newPwd !== confirmPwd) {
+        alert('Mật khẩu xác nhận không khớp!');
+        return;
+      }
+
+      const btn = document.getElementById('btn-save-pwd');
+      btn.disabled = true;
+      btn.innerText = 'Đang lưu...';
+
+      const { error } = await supabaseClient.auth.updateUser({ password: newPwd });
+
+      btn.disabled = false;
+      btn.innerText = 'Cập Nhật Mật Khẩu';
+
+      if (error) {
+        alert('Lỗi đổi mật khẩu: ' + error.message);
+      } else {
+        alert('Đã đổi mật khẩu thành công!');
+        pwdModal.style.display = 'none';
+      }
     };
 
     document.getElementById('menu-btn-logout').onclick = async () => {
@@ -986,7 +1050,7 @@
       renderCatTable(); renderCategoryBar(); populateCategoryDropdown();
     };
 
-   document.getElementById('btn-save-cat-orders').onclick = async () => {
+    document.getElementById('btn-save-cat-orders').onclick = async () => {
       const nameInputs = document.querySelectorAll('.cat-name-input');
       const orderInputs = document.querySelectorAll('.cat-order-input');
 
@@ -1008,7 +1072,6 @@
             .eq('user_id', currentUser.id)
             .eq('category', oldName);
           
-          // Cập nhật bộ nhớ allBooks cục bộ
           allBooks.forEach(b => {
             if (b.category === oldName) b.category = newName;
           });
@@ -1209,7 +1272,6 @@
             const resp = await fetch(coverUrl);
             const blob = await resp.blob();
             
-            // Nén ảnh bìa qua Canvas đảm bảo nhẹ < 40KB
             const img = new Image();
             img.src = URL.createObjectURL(blob);
             img.onload = () => {
@@ -1226,7 +1288,6 @@
           }
         } catch (err) {}
 
-        // Lấy session token của tài khoản đang đăng nhập
         const { data: { session } } = await supabaseClient.auth.getSession();
         const token = session?.access_token;
 
@@ -1265,7 +1326,6 @@
 
       if (!fileUrl) return alert('Vui lòng chọn file EPUB để tải lên!');
 
-      // Cho phép đường dẫn từ bucket R2 của bạn (không yêu cầu userId trong link)
       const ALLOWED_PREFIX = `https://${R2_PUBLIC_DOMAIN}/`;
       if (!currentBookId && !fileUrl.startsWith(ALLOWED_PREFIX)) {
         return alert('Đường dẫn file không hợp lệ!');
