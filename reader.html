@@ -417,7 +417,7 @@
     let currentTheme = localStorage.getItem('reader_theme') || 'sepia';
     let currentFontFamily = localStorage.getItem('reader_font') || "system-ui, -apple-system, sans-serif";
     let currentLineHeight = localStorage.getItem('reader_lineHeight') || "1.6";
-    // Mặc định luôn là 'auto' trên máy tính để mở 2 cột trang sách như Hình 2
+    // Mặc định luôn là 'auto' trên máy tính để mở 2 cột trang sách
     let currentSpread = isMobileDevice ? 'none' : (localStorage.getItem('reader_spread') || 'auto');
 
     if (isMobileDevice) {
@@ -455,6 +455,21 @@
       return true;
     }
 
+    // Hàm tính % chuẩn và làm tròn thành 100% khi chạm trang cuối
+    function calculateProgressMetrics(location) {
+      if (!book || !book.locations || !book.locations.length() || !location || !location.start) {
+        return null;
+      }
+      const currentPage = book.locations.locationFromCfi(location.start.cfi);
+      const totalPages = book.locations.length();
+      let percentage = Math.round((currentPage / totalPages) * 100);
+
+      if (location.atEnd || (totalPages > 0 && currentPage >= totalPages - 1) || percentage >= 99) {
+        percentage = 100;
+      }
+      return { currentPage, totalPages, percentage };
+    }
+
     async function start() {
       const isAuth = await checkAuth();
       if (!isAuth) return;
@@ -483,7 +498,6 @@
       syncStatus.innerText = 'Đang nạp sách...';
 
       try {
-        // Nạp sách trực tiếp từ URL như ban đầu
         book = ePub(bookRecord.file_url);
 
         rendition = book.renderTo('viewer', {
@@ -530,13 +544,12 @@
 
           const currentCfi = location.start.cfi;
           localStorage.setItem(localProgressKey, currentCfi);
-          updateProgressDisplay();
+          updateProgressDisplay(location);
 
           let currentPercent = 0;
-          if (book.locations && book.locations.length()) {
-            const currentPage = book.locations.locationFromCfi(currentCfi);
-            const totalPages = book.locations.length();
-            currentPercent = Math.round((currentPage / totalPages) * 100);
+          const metrics = calculateProgressMetrics(location);
+          if (metrics) {
+            currentPercent = metrics.percentage;
           }
 
           clearTimeout(debounceTimer);
@@ -601,18 +614,14 @@
       }
     }
 
-    function updateProgressDisplay() {
-      if (!book || !book.locations || !book.locations.length()) {
+    function updateProgressDisplay(loc = null) {
+      const currentLocation = loc || (rendition ? rendition.currentLocation() : null);
+      const metrics = calculateProgressMetrics(currentLocation);
+      if (!metrics) {
         pageCounter.innerText = 'Đang tính vị trí...';
         return;
       }
-      const currentLocation = rendition.currentLocation();
-      if (currentLocation && currentLocation.start) {
-        const currentPage = book.locations.locationFromCfi(currentLocation.start.cfi);
-        const totalPages = book.locations.length();
-        const percentage = Math.round((currentPage / totalPages) * 100);
-        pageCounter.innerText = `Trang ${currentPage} / ${totalPages} (${percentage}%)`;
-      }
+      pageCounter.innerText = `Trang ${metrics.currentPage} / ${metrics.totalPages} (${metrics.percentage}%)`;
     }
 
     function setupIframeHighlightEngine(contents) {
