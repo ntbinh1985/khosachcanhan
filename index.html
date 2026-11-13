@@ -152,7 +152,7 @@
     .progress-bar-fill { background: #2563eb; height: 100%; border-radius: 10px; }
     .reading-percent { font-size: 11px; color: #64748b; font-weight: 500; }
 
-    /* Thanh Thể loại & Yêu thích */
+    /* Thanh Thể loại, Yêu thích & Đã Đọc Xong */
     .category-bar {
       display: flex;
       gap: 8px;
@@ -174,6 +174,7 @@
     }
     .cat-pill.active { background: var(--primary); color: #ffffff; border-color: var(--primary); }
     .cat-pill.favorite-pill.active { background: #eab308; border-color: #eab308; }
+    .cat-pill.completed-pill.active { background: #10b981; border-color: #10b981; }
 
     /* Lưới sách: 5 cột, tỉ lệ bìa 2:3 */
     .book-grid { 
@@ -197,6 +198,22 @@
       transition: transform 0.2s, box-shadow 0.2s; 
     }
     .book-card:hover { transform: translateY(-3px); box-shadow: 0 8px 16px -4px rgba(0,0,0,0.08); }
+
+    /* Nhãn Đã Đọc Xong trên bìa sách */
+    .completed-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(16, 185, 129, 0.94);
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+      z-index: 4;
+      pointer-events: none;
+    }
     
     .cover-box { 
       width: 100%; 
@@ -405,10 +422,11 @@
       <div class="reading-grid" id="reading-grid"></div>
     </div>
 
-    <!-- Thanh Thể loại & Sách Yêu Thích -->
+    <!-- Thanh Thể loại, Yêu Thích & Đã Đọc Xong -->
     <div class="category-bar" id="category-bar">
       <button class="cat-pill active" data-cat="all">Tất Cả</button>
       <button class="cat-pill favorite-pill" data-cat="favorite">⭐ Yêu Thích</button>
+      <button class="cat-pill completed-pill" data-cat="completed">✓ Đã Đọc Xong</button>
     </div>
 
     <!-- Lưới Sách Chính (3 hàng x 5 cuốn = 15 cuốn/trang) -->
@@ -569,7 +587,6 @@
     let quoteRotateInterval = null;
     let extractedCoverBase64 = null;
 
-    // Hàm chống tấn công XSS
     function escapeHtml(str) {
       if (!str) return '';
       return String(str)
@@ -580,7 +597,6 @@
         .replace(/'/g, '&#039;');
     }
 
-    // Elements
     const bookGrid = document.getElementById('book-grid');
     const paginationBar = document.getElementById('pagination-bar');
     const bookModal = document.getElementById('book-modal');
@@ -623,7 +639,7 @@
       quotesModal.style.display = 'flex';
     };
 
-    // Mở Modal Đổi Mật Khẩu
+    // Đổi Mật Khẩu
     document.getElementById('menu-btn-password').onclick = () => {
       userDropdown.classList.remove('show');
       document.getElementById('new-password-input').value = '';
@@ -736,11 +752,12 @@
         const item = document.createElement('div');
         item.className = 'search-result-item';
         const percent = readingProgressMap[book.id];
+        const statusLabel = percent >= 99 ? '<span style="color:#10b981; font-weight:600;">✓ Đã đọc xong</span>' : (percent ? `<span style="color:#2563eb; font-weight:600;">Đang đọc ${percent}%</span>` : '');
         item.innerHTML = `
           ${book.cover_url ? `<img src="${book.cover_url}" class="search-item-cover">` : `<div class="search-item-cover" style="display:flex;align-items:center;justify-content:center;">📖</div>`}
           <div class="search-item-info">
             <div class="search-item-title">${escapeHtml(book.title)}</div>
-            <div class="search-item-sub">${escapeHtml(book.author || 'Chưa rõ tác giả')} • ${escapeHtml(book.category || 'Khác')} ${percent ? `• <span style="color:#2563eb; font-weight:600;">Đang đọc ${percent}%</span>` : ''}</div>
+            <div class="search-item-sub">${escapeHtml(book.author || 'Chưa rõ tác giả')} • ${escapeHtml(book.category || 'Khác')} ${statusLabel ? `• ${statusLabel}` : ''}</div>
           </div>
         `;
         item.onclick = () => window.location.href = `reader.html?id=${book.id}`;
@@ -749,7 +766,7 @@
     }
 
     // ==========================================
-    // TRÍCH DẪN (QUOTES) - COPY & ĐỔI TỨC THÌ
+    // TRÍCH DẪN (QUOTES)
     // ==========================================
     async function loadQuotes() {
       const { data } = await supabaseClient.from('quotes').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
@@ -908,7 +925,7 @@
     };
 
     // ==========================================
-    // TIẾN ĐỘ ĐỌC & SÁCH ĐANG ĐỌC DỞ
+    // TIẾN ĐỘ ĐỌC & SÁCH ĐANG ĐỌC DỞ (< 99%)
     // ==========================================
     async function loadReadingProgress() {
       const { data } = await supabaseClient.from('reading_progress').select('*').eq('user_id', currentUser.id);
@@ -927,7 +944,8 @@
       const grid = document.getElementById('reading-grid');
       grid.innerHTML = '';
 
-      const unfinishedBooks = allBooks.filter(b => readingProgressMap[b.id] && readingProgressMap[b.id] < 100);
+      // Sách đạt >= 99% được tính là đã hoàn thành nên sẽ rút khỏi mục Đang đọc dở
+      const unfinishedBooks = allBooks.filter(b => readingProgressMap[b.id] && readingProgressMap[b.id] < 99);
 
       if (unfinishedBooks.length === 0) {
         section.style.display = 'none';
@@ -953,7 +971,7 @@
     }
 
     // ==========================================
-    // THỂ LOẠI & YÊU THÍCH
+    // THỂ LOẠI, YÊU THÍCH & ĐÃ ĐỌC XONG
     // ==========================================
     async function loadCategories() {
       const { data } = await supabaseClient.from('categories').select('*').eq('user_id', currentUser.id).order('sort_order', { ascending: true });
@@ -972,6 +990,7 @@
       catBar.innerHTML = `
         <button class="cat-pill ${currentCategory === 'all' ? 'active' : ''}" data-cat="all">Tất Cả</button>
         <button class="cat-pill favorite-pill ${currentCategory === 'favorite' ? 'active' : ''}" data-cat="favorite">⭐ Yêu Thích</button>
+        <button class="cat-pill completed-pill ${currentCategory === 'completed' ? 'active' : ''}" data-cat="completed">✓ Đã Đọc Xong</button>
       `;
 
       userCategories.sort((a, b) => a.sort_order - b.sort_order);
@@ -1064,7 +1083,6 @@
           return;
         }
 
-        // Nếu có thay đổi tên thể loại, cập nhật luôn các sách đang dùng thể loại cũ
         if (oldName !== newName) {
           await supabaseClient
             .from('books')
@@ -1125,6 +1143,8 @@
       let filtered = allBooks;
       if (currentCategory === 'favorite') {
         filtered = allBooks.filter(b => b.is_favorite === true);
+      } else if (currentCategory === 'completed') {
+        filtered = allBooks.filter(b => (readingProgressMap[b.id] || 0) >= 99);
       } else if (currentCategory !== 'all') {
         filtered = allBooks.filter(b => (b.category || 'Chưa phân loại') === currentCategory);
       }
@@ -1143,9 +1163,11 @@
 
       bookGrid.innerHTML = '';
       paginatedBooks.forEach(book => {
+        const isCompleted = (readingProgressMap[book.id] || 0) >= 99;
         const card = document.createElement('div');
         card.className = 'book-card';
         card.innerHTML = `
+          ${isCompleted ? `<div class="completed-badge">✓ Đã xong</div>` : ''}
           <div class="card-actions">
             <button class="action-icon-btn btn-edit" title="Sửa sách" data-id="${book.id}">✏️</button>
             <button class="action-icon-btn btn-delete" title="Xóa sách" data-id="${book.id}">🗑️</button>
@@ -1173,7 +1195,6 @@
           window.location.href = `reader.html?id=${book.id}`;
         };
 
-        // Bấm đổi sao yêu thích
         card.querySelector('.btn-fav').onclick = async (e) => {
           e.stopPropagation();
           const newStatus = !book.is_favorite;
@@ -1185,7 +1206,6 @@
           if (currentCategory === 'favorite') renderBookGrid();
         };
 
-        // Sửa sách
         card.querySelector('.btn-edit').onclick = (e) => {
           e.stopPropagation();
           document.getElementById('edit-book-id').value = book.id;
@@ -1199,7 +1219,6 @@
           bookModal.style.display = 'flex';
         };
 
-        // Xóa sách
         card.querySelector('.btn-delete').onclick = async (e) => {
           e.stopPropagation();
           if (confirm(`Xóa cuốn sách "${book.title}" khỏi tài khoản?`)) {
